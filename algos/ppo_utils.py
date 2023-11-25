@@ -5,7 +5,7 @@ import numpy as np
 import  torch
 
 class Policy(torch.nn.Module):
-    def __init__(self, state_space, action_space, hidden_size=32, device):
+    def __init__(self, state_space, action_space, device, hidden_size=32):
         super().__init__()
         self.state_space = state_space
         self.action_space = action_space
@@ -49,4 +49,4 @@ class Policy(torch.nn.Module):
 
     
     def set_logstd_ratio(self, ratio_of_episodes):
-        pass # will be implemented in extension
+        pass # will be implemented for the extension
