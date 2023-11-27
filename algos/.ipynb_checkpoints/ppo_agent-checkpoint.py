@@ -45,6 +45,7 @@ class PPOAgent(BaseAgent):
         new_values = new_values.squeeze() # (bs,)
         # print(f'{return_estimates.shape=}') # (bs,)
         
+        # value_loss = (new_values - return_estimates).pow(2).mean() # (1)
         value_loss = F.smooth_l1_loss(new_values, return_estimates, reduction="mean") # (1)
         # print(f'{value_loss=}')
 
@@ -56,9 +57,6 @@ class PPOAgent(BaseAgent):
         # print(f'{actions.shape=}') # (bs, act_dim)
         # Calculate the actor/policy loss: make new_policy_action_probs similar to advantage distribution to an extent
         new_policy_action_log_probs = new_policy_action_dists.log_prob(actions)  # (bs,) log prob of joint distribution of all dimensions Pr(x,y)
-        # print(f'{action_log_probs.shape=}')
-        # print(f'{new_policy_action_log_probs.shape=}')
-        
         ratio = torch.exp(new_policy_action_log_probs - action_log_probs) # exp(logx - logy) = x/y :)
         # print(f'{ratio.shape=}')  # (bs,)
         
@@ -70,38 +68,39 @@ class PPOAgent(BaseAgent):
         
         # entropy = action_dists.entropy().mean()
         
-        loss = policy_objective + 0.5*value_loss # - 0.01*entropy
+        loss = 1.0*policy_objective + 1.0*value_loss # - 0.01*entropy
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
     
     # 2.4.1.1
+    @torch.no_grad()
     def compute_returns(self):
-        TDn_return_estimate = []
-        with torch.no_grad():
-            _, values = self.policy(self.states) # act_distr , values
-            _, next_values = self.policy(self.next_states) # act_distr , values
-            values = values.squeeze()
-            next_values = next_values.squeeze()
-        
-        # TD1_return_estimate = rewards + not_dones*self.gamma*next_state_values # (bs,)
-        
+        _, next_state_values = self.policy(self.next_states) # act_distr , values
+        next_state_values = next_state_values.squeeze() # (bs, )
+
+        # TD1_return_estimate = self.rewards + (1-self.dones)*self.gamma*next_state_values # (bs,)
+        # return TD1_return_estimate # (bs,)
+
         # Generalized Advantage Estimation TD(n)
+        _, values = self.policy(self.states) # act_distr , values
+        values = values.squeeze()
+        TDn_return_estimate = []
         gaes = torch.zeros(1)
         timesteps = len(self.rewards)
         for t in range(timesteps-1, -1, -1):
-            deltas = self.rewards[t] + self.gamma * next_values[t] * (1-self.dones[t]) - values[t]
+            deltas = self.rewards[t] + self.gamma * next_state_values[t] * (1-self.dones[t]) - values[t]
             gaes = deltas + self.gamma*self.tau*(1-self.dones[t])*gaes
             TDn_return_estimate.append(gaes + values[t])
 
-        
         return torch.Tensor(list(reversed(TDn_return_estimate))) # (bs,)
     
     # 2.4.1
     def ppo_epoch(self):
         indices = list(range(len(self.states)))
         return_estimates = self.compute_returns()
+        
         '''
         - we batchify the episode in order to have multiple updates of the value and policy networks in one episode.
         This way we easily have 2 versions of policy (old and new) to compare in one episode, instead of 2 versions from 2 episodes. 
@@ -127,22 +126,22 @@ class PPOAgent(BaseAgent):
             print("Updating the policy...")
         
         # print(f'{self.states.shape=}')
-        self.states = torch.stack(self.states, dim=0).to(self.device).squeeze(-1) # (bs, state_dim)
+        self.states = torch.stack(self.states, dim=0).to(self.device).squeeze() # (bs, state_dim)
         # print(f'{self.states.shape=}')
         # print(f'{self.next_states.shape=}')
-        self.next_states = torch.stack(self.next_states, dim=0).to(self.device).squeeze(-1)  # (bs, state_dim)
+        self.next_states = torch.stack(self.next_states, dim=0).to(self.device).squeeze()  # (bs, state_dim)
         # print(f'{self.next_states.shape=}')
         # print(f'{self.actions.shape=}')
         self.actions = torch.stack(self.actions, dim=0).to(self.device).squeeze()  # (bs, act_dim)
         # print(f'{self.actions.shape=}')
         # print(f'{self.action_log_probs.shape=}')
-        self.action_log_probs = torch.stack(self.action_log_probs, dim=0).to(self.device).squeeze()  # (bs, act_dim)
+        self.action_log_probs = torch.stack(self.action_log_probs, dim=0).to(self.device).squeeze()  # if Normal:(bs, act_dim) elif Multivariate Normal: (bs, )
         # print(f'{self.action_log_probs.shape=}')
         # print(f'{self.rewards.shape=}')
-        self.rewards = torch.stack(self.rewards, dim=0).to(self.device).squeeze(-1) # (bs,)
+        self.rewards = torch.stack(self.rewards, dim=0).to(self.device).squeeze() # (bs,)
         # print(f'{self.rewards.shape=}')
         # print(f'{self.dones.shape=}')
-        self.dones = torch.stack(self.dones, dim=0).to(self.device).squeeze(-1) # (bs,)
+        self.dones = torch.stack(self.dones, dim=0).to(self.device).squeeze() # (bs,)
         # print(f'{self.dones.shape=}')
         
         for e in range(self.epochs):
@@ -162,6 +161,7 @@ class PPOAgent(BaseAgent):
         return {}
     
     # 2.1
+    @torch.no_grad()
     def get_action(self, observation, evaluation=False):
         """Return action (np.ndarray) and logprob (torch.Tensor) of this action."""
         if observation.ndim == 1: observation = observation[None] # add the batch dimension
@@ -174,19 +174,23 @@ class PPOAgent(BaseAgent):
         # 3. the returned action and the act_logprob should be torch.Tensors.
         #    Please always make sure the shape of variables is as you expected.
         
+        # Return mean if evaluation, else sample from the distribution
+        # Pass state x through the policy network (T1)
+        act_distr, _ = self.policy(x) #  act_distr, values
         if evaluation:
-            with torch.no_grad():
-                # Pass state x through the policy network (T1)
-                act_distr, _ = self.policy(x) #  act_distr, values
-
-                # Return mean if evaluation, else sample from the distribution
-                action = act_distr.mean
-        else:
-            # Pass state x through the policy network (T1)
-            act_distr, _ = self.policy(x) #  act_distr, values
             # Return mean if evaluation, else sample from the distribution
+            action = act_distr.mean
+        else:
+            # Consider the sanding area's dimensions of 100 units in both width and height when sampling x, y coordinates.
+            '''
+            Robot Characteristics:
+            The robot is visualized as a purple circle with a radius of 10, operating on a 2D plane. The x and y coordinates range from -50 to 50.
+            Sanding & No-Sanding Areas:
+            There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
+            '''
             action = act_distr.sample()
         
+        action = torch.clamp(input=action, min=-50.0, max=50.0)
         # Calculate the log probability of the action (T1)
         action_log_prob = act_distr.log_prob(action)
         
@@ -200,6 +204,7 @@ class PPOAgent(BaseAgent):
 
         # Reset the environment and observe the initial state
         observation, _  = self.env.reset()
+        # $$$$$ remember to remove the seed when not debugging
 
         while not done and episode_length < self.cfg.max_episode_steps:
             # Get action from the agent
@@ -292,7 +297,7 @@ class PPOAgent(BaseAgent):
     def store_outcome(self, state, action, next_state, reward, action_log_prob, done): # added
         self.states.append(torch.from_numpy(state).float())
         self.actions.append(action)
-        self.action_log_probs.append(action_log_prob.detach())
+        self.action_log_probs.append(action_log_prob)
         self.rewards.append(torch.Tensor([reward]).float())
         self.dones.append(torch.Tensor([done]))
         self.next_states.append(torch.from_numpy(next_state).float())

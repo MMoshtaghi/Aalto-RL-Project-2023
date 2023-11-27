@@ -20,7 +20,14 @@ class Policy(torch.nn.Module):
             nn.Linear(hidden_size, action_space)
         )
         # Use log of std to make sure std (standard deviation) of the policy doesn't become negative during training
-        self.actor_logstd = torch.zeros(self.action_space, device=self.device)
+        # Consider the sanding area's dimensions of 100 units in both width and height when sampling x, y coordinates.
+        '''
+        Robot Characteristics:
+        The robot is visualized as a purple circle with a radius of 10, operating on a 2D plane. The x and y coordinates range from -50 to 50.
+        Sanding & No-Sanding Areas:
+        There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
+        '''
+        self.actor_logstd = torch.log( 10.0*torch.ones(self.action_space, device=self.device) )
         # self.actor_logstd = torch.ones(self.action_space, device=self.device)
         # Extend:
         # self.register_parameter(name='actor_logstd',
