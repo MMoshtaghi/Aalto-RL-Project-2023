@@ -1,6 +1,6 @@
 from .agent_base import BaseAgent
 from .ddpg_utils import Policy, Critic, ReplayBuffer
-import utils.common_utils as cu
+from ..utils import common_utils as cu
 import torch
 import numpy as np
 import torch.nn.functional as F
