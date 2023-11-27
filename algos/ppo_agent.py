@@ -63,7 +63,6 @@ class PPOAgent(BaseAgent):
         ratio = torch.exp(new_policy_action_log_probs - action_log_probs)  # exp(logx - logy) = x/y :)
         # print(f'{ratio.shape=}')  # (bs,)
 
-        # TODO is this an improvement?
         clipped_ratio = torch.clamp(ratio, 1 - self.clip, 1 + self.clip)  # (bs,)
         # print(f'{clipped_ratio.shape=}')
 
