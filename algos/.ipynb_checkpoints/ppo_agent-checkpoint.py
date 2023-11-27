@@ -10,8 +10,8 @@ class PPOAgent(BaseAgent):
     def __init__(self, config=None):
         super(PPOAgent, self).__init__(config) # look at the attributes of the BaseAgent class
         self.device = self.cfg.device  # ""cuda" if torch.cuda.is_available() else "cpu"
-        self.policy= Policy(state_space=self.observation_space_dim, # from BaseAgent : 6
-                            action_space=self.action_space_dim, # from BaseAgent : 2
+        self.policy= Policy(state_space=self.observation_space_dim, # from BaseAgent
+                            action_space=self.action_space_dim, # from BaseAgent
                             hidden_size=32,
                             device=self.device)
         self.lr=float(self.cfg.lr)
@@ -127,7 +127,7 @@ class PPOAgent(BaseAgent):
         
         # print(f'{self.states.shape=}')
         self.states = torch.stack(self.states, dim=0).to(self.device).squeeze() # (bs, state_dim)
-        # print(f'{self.states.shape=}')
+        # print(f'{self.states=}')
         # print(f'{self.next_states.shape=}')
         self.next_states = torch.stack(self.next_states, dim=0).to(self.device).squeeze()  # (bs, state_dim)
         # print(f'{self.next_states.shape=}')
@@ -137,6 +137,7 @@ class PPOAgent(BaseAgent):
         # print(f'{self.action_log_probs.shape=}')
         self.action_log_probs = torch.stack(self.action_log_probs, dim=0).to(self.device).squeeze()  # if Normal:(bs, act_dim) elif Multivariate Normal: (bs, )
         # print(f'{self.action_log_probs.shape=}')
+        # assert False
         # print(f'{self.rewards.shape=}')
         self.rewards = torch.stack(self.rewards, dim=0).to(self.device).squeeze() # (bs,)
         # print(f'{self.rewards.shape=}')
@@ -187,12 +188,35 @@ class PPOAgent(BaseAgent):
             The robot is visualized as a purple circle with a radius of 10, operating on a 2D plane. The x and y coordinates range from -50 to 50.
             Sanding & No-Sanding Areas:
             There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
+            
+            A state ( s ) is defined as:
+            𝑠=[(𝑥ROBOT,𝑦ROBOT),(𝑥SAND,𝑦SAND)1,…,(𝑥SAND,𝑦SAND)𝑁,(𝑥NOSAND,𝑦NOSAND)1,…,(𝑥NOSAND,𝑦NOSAND)𝑀)]
+
+            𝑁
+              is the number of sanding areas (circles)
+            𝑀
+              is the number of no-sanding areas (circles)
+            observation[0], observation[1] : (𝑥ROBOT,𝑦ROBOT): Robot's current location 
+            observation[2(1+n)], observation[2(1+n)+1] : (𝑥SAND,𝑦SAND)𝑖 : Location of the  𝑖th sanding area
+            observation[2(1+n+m)], observation[2(1+n+m)+1] : (𝑥NOSAND,𝑦NOSAND)𝑗 : Location of the  𝑗th no-sanding area
+            
+            $$$$$$$ Note: each spot that gets sanded by the robot is replaced by -70.0 !!!!!
+            
+            $$$$$$ The NN action_mean output must be between (-1, 1), std= then we multiply it by 50 to match the size of the environment
             '''
             action = act_distr.sample()
         
-        action = torch.clamp(input=action, min=-50.0, max=50.0)
+        action = action.flatten()
+        # print(f'{action=}, {action.shape=}')
+        # print(f'{x=}, {x.shape=}')
+        # assert False
+        action = torch.clamp(input=action, min=-1.0, max=1.0 )# change the min/max to +-40 (bc of the size of the robot itself and the sanding spots)
+        # action = torch.clamp(input=action, min=-45.0 + 0.3*torch.abs(input=action-x[:2]) , max=45.0 - 0.3*torch.abs(input=action-x[:,:2]) )
+        # 45 - |target - current position| ( 45 - torch.abs(input=action-x[:2]) )
+        # -45 + |target - current position|
         # Calculate the log probability of the action (T1)
         action_log_prob = act_distr.log_prob(action)
+        # print(f'{action_log_prob=}, {action_log_prob.shape=}')
         
         return action, action_log_prob
 
@@ -204,6 +228,9 @@ class PPOAgent(BaseAgent):
 
         # Reset the environment and observe the initial state
         observation, _  = self.env.reset()
+        # print(f'{observation=}')
+        # print(f'{observation[:2]=}')
+        # assert False
         # $$$$$ remember to remove the seed when not debugging
 
         while not done and episode_length < self.cfg.max_episode_steps:
@@ -211,7 +238,8 @@ class PPOAgent(BaseAgent):
             action, action_log_prob = self.get_action(observation)
 
             # Perform the action on the environment, get new state and reward
-            next_observation, reward, done, _, _ = self.env.step(self.to_numpy(action))
+            next_observation, reward, done, _, _ = self.env.step(action)
+            # print(f'{next_observation=}')
             
             # Store action's outcome (so that the agent can improve its policy)
             self.store_outcome(state=observation, action=action, next_state=next_observation, reward=reward,
@@ -226,6 +254,7 @@ class PPOAgent(BaseAgent):
 
             # Update the policy, if we have enough data
             if len(self.states) > self.cfg.min_update_samples:
+                # assert False
                 self.update_policy()
                 num_updates += 1
 

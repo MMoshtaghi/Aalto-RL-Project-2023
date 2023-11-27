@@ -4,6 +4,11 @@ from torch.distributions import Normal, Independent, MultivariateNormal
 import numpy as np
 import  torch.nn as nn
 
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
 class Policy(torch.nn.Module):
     def __init__(self, state_space, action_space, device, hidden_size=32):
         super().__init__()
@@ -14,11 +19,20 @@ class Policy(torch.nn.Module):
         # implement the rest (similar to ex1 configuration as requested in the instruction)
         self.device = device
         
+        # self.actor_mean = nn.Sequential(
+        #     nn.Linear(state_space, hidden_size),
+        #     nn.Linear(hidden_size, hidden_size),
+        #     nn.Linear(hidden_size, action_space),
+        #     nn.Tanh(), #The NN action_mean output must be between (-1, 1), then in the sanding.py, it gets multiplied by 50 to match the size of the environment
+        # )
+        
         self.actor_mean = nn.Sequential(
-            nn.Linear(state_space, hidden_size),
-            nn.Linear(hidden_size, hidden_size),
-            nn.Linear(hidden_size, action_space)
+            layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
+            layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
+            layer_init(nn.Linear(hidden_size, action_space), std=0.01),
+            nn.Tanh(), #The NN action_mean output must be between (-1, 1), then in the sanding.py, it gets multiplied by 50 to match the size of the environment
         )
+            
         # Use log of std to make sure std (standard deviation) of the policy doesn't become negative during training
         # Consider the sanding area's dimensions of 100 units in both width and height when sampling x, y coordinates.
         '''
@@ -27,7 +41,7 @@ class Policy(torch.nn.Module):
         Sanding & No-Sanding Areas:
         There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
         '''
-        self.actor_logstd = torch.log( 10.0*torch.ones(self.action_space, device=self.device) )
+        self.actor_logstd = torch.log( 2*0.2*torch.ones(self.action_space, device=self.device) )
         # self.actor_logstd = torch.ones(self.action_space, device=self.device)
         # Extend:
         # self.register_parameter(name='actor_logstd',
@@ -35,12 +49,18 @@ class Policy(torch.nn.Module):
         #                                                                       requires_grad=True,
         #                                                                       device=device)) )
         
+        # self.value = nn.Sequential(
+        #     nn.Linear(state_space, hidden_size),
+        #     nn.Linear(hidden_size, hidden_size),
+        #     nn.Linear(hidden_size, 1)
+        # )
         self.value = nn.Sequential(
-            nn.Linear(state_space, hidden_size),
-            nn.Linear(hidden_size, hidden_size),
-            nn.Linear(hidden_size, 1)
+            layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
+            layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
+            layer_init(nn.Linear(hidden_size, 1)),
         )
-        self.init_weights()
+            
+        # self.init_weights()
 
         
     def init_weights(self):
