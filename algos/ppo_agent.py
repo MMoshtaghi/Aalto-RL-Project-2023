@@ -66,9 +66,9 @@ class PPOAgent(BaseAgent):
         # for each action sample in the batch, 1st sum of the dimensions, 2nd the min between clipped and unclipped will be returned, 3rd mean
         policy_objective = -torch.min( ratio*advantages , clipped_ratio*advantages ).mean()
         
-        # entropy = action_dists.entropy().mean()
+        # entropy = action_dists.entropy().mean()  ########################### improvement
         
-        loss = 1.0*policy_objective + 1.0*value_loss # - 0.01*entropy
+        loss = 1.0*policy_objective + 1.0*value_loss # - 0.01*entropy   ########################### improvement
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -207,10 +207,23 @@ class PPOAgent(BaseAgent):
             action = act_distr.sample()
         
         action = action.flatten()
+        
+        ########################### improvement
+        '''
+        we can hit a sanding spot when the distance between the robot position and the sanding spot is less than 0.2 or 10, so (-0.8, 0.8) or (-0.4, 0.4) can be a good limit for action.
+        Also, the pd controller overshoots proportional to the distance between current robot position and the target position.
+        
+        so we can first clamp the mean action (-0.82 ,0.82) or (-41, 41),  
+        '''
+        # action = 0.82 * action
+        # overshoot_brake = 0.3 # the higher brake, the more brake when higher distance from target 
+        # action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2])/50.0 , max=0.9 - overshoot_brake*torch.abs(input=action-x[:,:2])/50.0 )
+        ########################### improvement
+        
         # print(f'{action=}, {action.shape=}')
         # print(f'{x=}, {x.shape=}')
         # assert False
-        action = torch.clamp(input=action, min=-1.0, max=1.0 )# change the min/max to +-40 (bc of the size of the robot itself and the sanding spots)
+        action = torch.clamp(input=action, min=-1.0, max=1.0 )# 
         # action = torch.clamp(input=action, min=-45.0 + 0.3*torch.abs(input=action-x[:2]) , max=45.0 - 0.3*torch.abs(input=action-x[:,:2]) )
         # 45 - |target - current position| ( 45 - torch.abs(input=action-x[:2]) )
         # -45 + |target - current position|

@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch.distributions import Normal, Independent, MultivariateNormal
+from torch.distributions import Normal, Independent #, MultivariateNormal
 import numpy as np
 import  torch.nn as nn
 
@@ -25,7 +25,12 @@ class Policy(torch.nn.Module):
         #     nn.Linear(hidden_size, action_space),
         #     nn.Tanh(), #The NN action_mean output must be between (-1, 1), then in the sanding.py, it gets multiplied by 50 to match the size of the environment
         # )
-        
+        '''
+        As TA said on Zulip:"
+        - For the NN setting , yes you can use the same architecture [as the ex1, with same depth and width]
+        - It is typical to add the tanh layer at the end of NN such that action is in the proper range
+        for the previous activation layer you can use any
+        '''
         self.actor_mean = nn.Sequential(
             layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
             layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
@@ -63,11 +68,11 @@ class Policy(torch.nn.Module):
         # self.init_weights()
 
         
-    def init_weights(self):
-        for m in self.modules():
-            if type(m) is torch.nn.Linear:
-                torch.nn.init.normal_(m.weight, 0, 1e-1)
-                torch.nn.init.zeros_(m.bias)
+    # def init_weights(self):
+    #     for m in self.modules():
+    #         if type(m) is torch.nn.Linear:
+    #             torch.nn.init.normal_(m.weight, 0, 1e-1)
+    #             torch.nn.init.zeros_(m.bias)
 
 
     def forward(self, x):
@@ -86,10 +91,10 @@ class Policy(torch.nn.Module):
         # Gaussian policy with an isotropic covariance matrix:
         # A covariance matrix C is called isotropic, or spherical, if it is proportionate to the identity matrix
         # so Normal distribution with mean of 'action_mean' and standard deviation of 'action_logstd', and return the distribution
-        act_distr = MultivariateNormal( loc=action_mean, scale_tril=torch.diag(action_std) )
+        # act_distr = MultivariateNormal( loc=action_mean, scale_tril=torch.diag(action_std) )
         
-        # normal = Normal(loc=action_mean , scale=action_std)
-        # act_distr = Independent(base_distribution=normal, reinterpreted_batch_ndims=1)
+        act_normal_distr = Normal(loc=action_mean , scale=action_std)
+        act_distr = Independent(base_distribution=act_normal_distr, reinterpreted_batch_ndims=1)
         
         
         value = self.value(x) # output shape [bs,]
