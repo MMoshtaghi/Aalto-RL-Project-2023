@@ -31,6 +31,7 @@ class Policy(torch.nn.Module):
         - It is typical to add the tanh layer at the end of NN such that action is in the proper range
         for the previous activation layer you can use any
         '''
+        # IMPROVEMENT
         self.actor_mean = nn.Sequential(
             layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
             layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
@@ -46,6 +47,7 @@ class Policy(torch.nn.Module):
         Sanding & No-Sanding Areas:
         There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
         '''
+        # IMPROVEMENT
         self.actor_logstd = torch.log( 2*0.2*torch.ones(self.action_space, device=self.device) )
         # self.actor_logstd = torch.ones(self.action_space, device=self.device)
         # Extend:
@@ -59,6 +61,7 @@ class Policy(torch.nn.Module):
         #     nn.Linear(hidden_size, hidden_size),
         #     nn.Linear(hidden_size, 1)
         # )
+        #IMPROVEMENT
         self.value = nn.Sequential(
             layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
             layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
