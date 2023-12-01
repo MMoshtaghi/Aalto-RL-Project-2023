@@ -109,6 +109,7 @@ class PPOExtension(PPOAgent):
             action = act_distr.sample()
 
         action = action.flatten()
+        x = x.flatten()
 
         # IMPROVEMENT
         '''
@@ -117,14 +118,16 @@ class PPOExtension(PPOAgent):
         
         so we can first clamp the mean action (-0.82 ,0.82) or (-41, 41),  
         '''
-        # action = 0.82 * action
-        # overshoot_brake = 0.3 # the higher brake, the more brake when higher distance from target
-        # action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2])/50.0 , max=0.9 - overshoot_brake*torch.abs(input=action-x[:,:2])/50.0 )
-        # IMPROVEMENT
-
         # print(f'{action=}, {action.shape=}')
         # print(f'{x=}, {x.shape=}')
+        action = 0.82 * action
+        overshoot_brake = 0.3 # the higher brake, the more brake when higher distance from target
+        action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2])/50.0 , max=0.9 - overshoot_brake*torch.abs(input=action-x[:2])/50.0 )
         # assert False
+        # IMPROVEMENT
+
+        
+        
         action = torch.clamp(input=action, min=-1.0, max=1.0 )#
         # action = torch.clamp(input=action, min=-45.0 + 0.3*torch.abs(input=action-x[:2]) , max=45.0 - 0.3*torch.abs(input=action-x[:,:2]) )
         # 45 - |target - current position| ( 45 - torch.abs(input=action-x[:2]) )
