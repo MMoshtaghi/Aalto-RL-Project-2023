@@ -48,7 +48,7 @@ class Policy(torch.nn.Module):
         There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
         '''
         # IMPROVEMENT
-        self.actor_logstd = torch.log( 2*0.2*torch.ones(self.action_space, device=self.device) )
+        self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
         # self.actor_logstd = torch.ones(self.action_space, device=self.device)
         # Extend:
         # self.register_parameter(name='actor_logstd',
@@ -61,6 +61,7 @@ class Policy(torch.nn.Module):
         #     nn.Linear(hidden_size, hidden_size),
         #     nn.Linear(hidden_size, 1)
         # )
+        
         #IMPROVEMENT
         self.value = nn.Sequential(
             layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
@@ -99,13 +100,13 @@ class Policy(torch.nn.Module):
         act_normal_distr = Normal(loc=action_mean , scale=action_std)
         act_distr = Independent(base_distribution=act_normal_distr, reinterpreted_batch_ndims=1)
         
-        
         value = self.value(x) # output shape [bs,]
 
         return act_distr, value
 
     
     def set_logstd_ratio(self, ratio_of_episodes):
-        # self.actor_logstd = ratio_of_episodes * torch.ones(self.action_space, device=self.device)
-        # pass # will be implemented for the extension
-        pass
+        self.actor_logstd = (.05/50) * ratio_of_episodes * torch.ones(self.action_space, device=self.device)
+        
+    def set_logstd_ratio_normalized(self, ratio_of_episodes):
+        self.actor_logstd = .05* ratio_of_episodes * torch.ones(self.action_space, device=self.device)

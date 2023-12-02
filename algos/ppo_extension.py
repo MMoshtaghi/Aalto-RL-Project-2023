@@ -13,6 +13,61 @@ class PPOExtension(PPOAgent):
     def __init__(self, config=None):
         super(PPOExtension, self).__init__(config)  # look at the attributes of the BaseAgent class
         self.alpha_entropy_bonus = 0.01
+        
+    def train_iteration(self,ratio_of_episodes):
+        # Run actual training        
+        reward_sum, episode_length, num_updates = 0, 0, 0
+        done = False
+
+        # Reset the environment and observe the initial state
+        observation, _  = self.env.reset()
+        
+        # IMPROVEMENT input normalization
+        observation = observation/50.0
+        # IMPROVEMENT
+        
+        # print(f'{observation=}')
+        # print(f'{observation[:2]=}')
+        # assert False
+        # $$$$$ remember to remove the seed when not debugging
+
+        while not done and episode_length < self.cfg.max_episode_steps:
+            # Get action from the agent
+            action, action_log_prob = self.get_action(observation)
+
+            # Perform the action on the environment, get new state and reward
+            next_observation, reward, done, _, _ = self.env.step(action)
+            # print(f'{next_observation=}')
+            
+            # IMPROVEMENT input normalization
+            next_observation = next_observation/50.0
+            # IMPROVEMENT
+            
+            # Store action's outcome (so that the agent can improve its policy)
+            self.store_outcome(state=observation, action=action, next_state=next_observation, reward=reward,
+                               action_log_prob=action_log_prob, done=done)
+
+            # Store total episode reward
+            reward_sum += reward
+            episode_length += 1
+            
+            # update observation
+            observation = next_observation.copy()
+
+            # Update the policy, if we have enough data
+            if len(self.states) > self.cfg.min_update_samples:
+                # assert False
+                self.update_policy()
+                num_updates += 1
+
+                # this is for the extension
+                # Update policy randomness
+                # IMPROVEMENT: normalization
+                self.policy.set_logstd_ratio_normalized(ratio_of_episodes)
+
+        # Return stats of training
+        update_info = {'episode_length': episode_length, 'ep_reward': reward_sum}
+        return update_info
 
     def ppo_update(self, states, actions, rewards, next_states, dones, action_log_probs, return_estimates):
         '''
@@ -68,6 +123,10 @@ class PPOExtension(PPOAgent):
     def get_action(self, observation, evaluation=False):
         """Return action (np.ndarray) and logprob (torch.Tensor) of this action."""
         if observation.ndim == 1: observation = observation[None] # add the batch dimension
+        # IMPROVEMENT input normalization
+        if evaluation: observation = observation/50.0 # input to the NN : (-1, 1)
+        # IMPROVEMENT
+        
         x = torch.from_numpy(observation).float().to(self.device)
 
 
@@ -122,7 +181,10 @@ class PPOExtension(PPOAgent):
         # print(f'{x=}, {x.shape=}')
         action = 0.82 * action
         overshoot_brake = 0.3 # the higher brake, the more brake when higher distance from target
-        action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2])/50.0 , max=0.9 - overshoot_brake*torch.abs(input=action-x[:2])/50.0 )
+        
+        # NOTE: use the second option when inputs are normalized
+        # action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2])/50.0 , max=0.9 - overshoot_brake*torch.abs(input=action-x[:2])/50.0 )
+        action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2]) , max=0.9 - overshoot_brake*torch.abs(input=action-x[:2]))
         # assert False
         # IMPROVEMENT
 
