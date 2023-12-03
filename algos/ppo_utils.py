@@ -48,7 +48,10 @@ class Policy(torch.nn.Module):
         There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
         '''
         # IMPROVEMENT
-        self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
+        # self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
+        self.actor_logstd = torch.log( 0.001*torch.ones(self.action_space, device=self.device) )
+        
+        
         # self.actor_logstd = torch.ones(self.action_space, device=self.device)
         # Extend:
         # self.register_parameter(name='actor_logstd',
@@ -89,6 +92,7 @@ class Policy(torch.nn.Module):
         # action_logstd = self.actor_logstd.expand_as(action_mean) # (bs, act_dim)
         
         # Exponentiate the log std to get actual std
+        # print("self.actor_logstd", self.actor_logstd)
         action_std = torch.exp(self.actor_logstd) # (act_dim,)
         # torch.diag(action_std) : (act_dim, act_dim)
         
@@ -97,7 +101,7 @@ class Policy(torch.nn.Module):
         # so Normal distribution with mean of 'action_mean' and standard deviation of 'action_logstd', and return the distribution
         # act_distr = MultivariateNormal( loc=action_mean, scale_tril=torch.diag(action_std) )
         
-        act_normal_distr = Normal(loc=action_mean , scale=action_std)
+        act_normal_distr = Normal(loc=action_mean, scale=action_std)
         act_distr = Independent(base_distribution=act_normal_distr, reinterpreted_batch_ndims=1)
         
         value = self.value(x) # output shape [bs,]
@@ -106,7 +110,11 @@ class Policy(torch.nn.Module):
 
     
     def set_logstd_ratio(self, ratio_of_episodes):
-        self.actor_logstd = (.05/50) * ratio_of_episodes * torch.ones(self.action_space, device=self.device)
+        self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
         
     def set_logstd_ratio_normalized(self, ratio_of_episodes):
-        self.actor_logstd = .05* ratio_of_episodes * torch.ones(self.action_space, device=self.device)
+        # IMPROVEMENT
+        self.actor_logstd = torch.log( 0.5*(ratio_of_episodes+0.001)*torch.ones(self.action_space, device=self.device) )
+        # print("ratio_of_episodes", ratio_of_episodes) 
+        # print("self.actor_logstd", self.actor_logstd)
+        # self.actor_logstd = .05 * np.exp(ratio_of_episodes) * torch.ones(self.action_space, device=self.device)

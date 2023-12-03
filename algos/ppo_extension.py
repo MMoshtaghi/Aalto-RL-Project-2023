@@ -111,7 +111,7 @@ class PPOExtension(PPOAgent):
         # IMPROVEMENT OFF
         # loss = 1.0 * policy_objective + 1.0 * value_loss
 
-        # update alpha_entropy_bonus using exponential day
+        # update alpha_entropy_bonus using exponential decay
         self.alpha_entropy_bonus *= 0.999
         # IMPROVEMENT
 
@@ -187,8 +187,6 @@ class PPOExtension(PPOAgent):
         action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2]) , max=0.9 - overshoot_brake*torch.abs(input=action-x[:2]))
         # assert False
         # IMPROVEMENT
-
-        
         
         action = torch.clamp(input=action, min=-1.0, max=1.0 )#
         # action = torch.clamp(input=action, min=-45.0 + 0.3*torch.abs(input=action-x[:2]) , max=45.0 - 0.3*torch.abs(input=action-x[:,:2]) )
