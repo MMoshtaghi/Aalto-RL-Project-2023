@@ -46,7 +46,7 @@ class Policy(torch.nn.Module):
         Sanding & No-Sanding Areas:
         There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
         '''
-        self.actor_logstd = torch.log( 2*0.2*torch.ones(self.action_space, device=self.device) )
+        self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
         # self.actor_logstd = torch.ones(self.action_space, device=self.device)
         # Extend:
         # self.register_parameter(name='actor_logstd',
@@ -60,21 +60,11 @@ class Policy(torch.nn.Module):
         #     nn.Linear(hidden_size, 1)
         # )
         self.value = nn.Sequential(
-            layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
-            layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
+            layer_init(nn.Linear(state_space, hidden_size)), nn.LeakyReLU(negative_slope=0.1),
+            layer_init(nn.Linear(hidden_size, hidden_size)), nn.LeakyReLU(negative_slope=0.1),
             layer_init(nn.Linear(hidden_size, 1)),
         )
-            
-        # self.init_weights()
-
-        
-    # def init_weights(self):
-    #     for m in self.modules():
-    #         if type(m) is torch.nn.Linear:
-    #             torch.nn.init.normal_(m.weight, 0, 1e-1)
-    #             torch.nn.init.zeros_(m.bias)
-
-
+    
     def forward(self, x):
         # print(x.shape)
         # Get mean of a Normal distribution (the output of the neural network)
@@ -92,7 +82,7 @@ class Policy(torch.nn.Module):
         # A covariance matrix C is called isotropic, or spherical, if it is proportionate to the identity matrix
         # so Normal distribution with mean of 'action_mean' and standard deviation of 'action_logstd', and return the distribution
         # act_distr = MultivariateNormal( loc=action_mean, scale_tril=torch.diag(action_std) )
-        
+
         act_normal_distr = Normal(loc=action_mean , scale=action_std)
         act_distr = Independent(base_distribution=act_normal_distr, reinterpreted_batch_ndims=1)
         
@@ -102,7 +92,6 @@ class Policy(torch.nn.Module):
         return act_distr, value
 
     
-    def set_logstd_ratio(self, ratio_of_episodes):
-        # self.actor_logstd = ratio_of_episodes * torch.ones(self.action_space, device=self.device)
-        # pass # will be implemented for the extension
-        pass
+    def set_logstd_ratio(self, ratio_of_episodes): #IMPROVEMENT : decaying the logstd or std of the action distribution
+        self.actor_logstd = torch.log( (1.2+ratio_of_episodes) * 0.2*torch.ones(self.action_space, device=self.device) )
+        # self.actor_logstd = torch.log( 2 * 0.2*torch.ones(self.action_space, device=self.device) )

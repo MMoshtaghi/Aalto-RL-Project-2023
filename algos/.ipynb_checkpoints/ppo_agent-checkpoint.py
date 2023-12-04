@@ -68,7 +68,7 @@ class PPOAgent(BaseAgent):
         
         # entropy = action_dists.entropy().mean()  ########################### improvement
         
-        loss = 1.0*policy_objective + 1.0*value_loss # - 0.01*entropy   ########################### improvement
+        loss = 1.0*policy_objective + 0.5*value_loss # - 0.01*entropy   ########################### improvement
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -166,6 +166,9 @@ class PPOAgent(BaseAgent):
     def get_action(self, observation, evaluation=False):
         """Return action (np.ndarray) and logprob (torch.Tensor) of this action."""
         if observation.ndim == 1: observation = observation[None] # add the batch dimension
+        
+        if evaluation: observation = observation/50.0 # input to the NN : (-1, 1)
+        
         x = torch.from_numpy(observation).float().to(self.device)
 
 
@@ -217,14 +220,17 @@ class PPOAgent(BaseAgent):
         '''
         # action = 0.82 * action
         # overshoot_brake = 0.3 # the higher brake, the more brake when higher distance from target 
-        # action = torch.clamp(input=action, min=-0.9 + overshoot_brake*torch.abs(input=action-x[:2])/50.0 , max=0.9 - overshoot_brake*torch.abs(input=action-x[:,:2])/50.0 )
+        # action = torch.clamp( input=action, min= -0.9 + overshoot_brake * torch.abs(input= action - x[:,:2].squeeze()) , max=0.9 - overshoot_brake * torch.abs(input= action - x[:,:2].squeeze()) )
         ########################### improvement
         
         # print(f'{action=}, {action.shape=}')
-        # print(f'{x=}, {x.shape=}')
+        # print(f'{x[:2]=}, {x[:2].shape=}')
+        # print(f'{x[:,:2].squeeze()=}, {x[:,:2].squeeze().shape=}')
+        
+        action = torch.clamp(input=action, min=-1.0, max=1.0 )
+        
+        # print(f'{action=}, {action.shape=}')
         # assert False
-        action = torch.clamp(input=action, min=-1.0, max=1.0 )# 
-        # action = torch.clamp(input=action, min=-45.0 + 0.3*torch.abs(input=action-x[:2]) , max=45.0 - 0.3*torch.abs(input=action-x[:,:2]) )
         # 45 - |target - current position| ( 45 - torch.abs(input=action-x[:2]) )
         # -45 + |target - current position|
         # Calculate the log probability of the action (T1)
@@ -241,6 +247,7 @@ class PPOAgent(BaseAgent):
 
         # Reset the environment and observe the initial state
         observation, _  = self.env.reset()
+        observation = observation/50.0
         # print(f'{observation=}')
         # print(f'{observation[:2]=}')
         # assert False
@@ -252,6 +259,7 @@ class PPOAgent(BaseAgent):
 
             # Perform the action on the environment, get new state and reward
             next_observation, reward, done, _, _ = self.env.step(action)
+            next_observation = next_observation/50.0
             # print(f'{next_observation=}')
             
             # Store action's outcome (so that the agent can improve its policy)
@@ -273,7 +281,7 @@ class PPOAgent(BaseAgent):
 
                 # this is for the extension
                 # Update policy randomness
-                self.policy.set_logstd_ratio(ratio_of_episodes)
+                # self.policy.set_logstd_ratio(ratio_of_episodes)
 
         # Return stats of training
         update_info = {'episode_length': episode_length, 'ep_reward': reward_sum}
@@ -295,17 +303,18 @@ class PPOAgent(BaseAgent):
             train_info.update({'total_step': total_step})
             run_episode_reward.append(train_info['ep_reward'])
             
-            logstd = self.policy.actor_logstd
-            
-            if total_step%self.cfg.log_interval==0:
-                average_return=sum(run_episode_reward)/len(run_episode_reward)
-                if not self.cfg.silent:
-                    print(f"Episode {ep} Step {total_step} finished. Average episode return: {average_return} ({train_info['episode_length']} episode_length, {logstd} logstd)")
+            with torch.no_grad():
+                logstd = self.policy.actor_logstd
 
-                if self.cfg.save_logging:
-                    train_info.update({'average_return':average_return})
-                    L.log(**train_info)
-                run_episode_reward=[]
+                if total_step%self.cfg.log_interval==0:
+                    average_return=sum(run_episode_reward)/len(run_episode_reward)
+                    if not self.cfg.silent:
+                        print(f"Episode {ep} Step {total_step} finished. Average episode return: {average_return} ({train_info['episode_length']} episode_length, {logstd} logstd), {torch.exp(logstd)} std")
+
+                    if self.cfg.save_logging:
+                        train_info.update({'average_return':average_return})
+                        L.log(**train_info)
+                    run_episode_reward=[]
 
         # Save the model
         if self.cfg.save_model:
