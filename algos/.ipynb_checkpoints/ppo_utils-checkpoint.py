@@ -25,7 +25,13 @@ class Policy(torch.nn.Module):
         #     nn.Linear(hidden_size, action_space),
         #     nn.Tanh(), #The NN action_mean output must be between (-1, 1), then in the sanding.py, it gets multiplied by 50 to match the size of the environment
         # )
-        
+        '''
+        As TA said on Zulip:"
+        - For the NN setting , yes you can use the same architecture [as the ex1, with same depth and width]
+        - It is typical to add the tanh layer at the end of NN such that action is in the proper range
+        for the previous activation layer you can use any
+        '''
+        # IMPROVEMENT
         self.actor_mean = nn.Sequential(
             layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
             layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
@@ -41,7 +47,11 @@ class Policy(torch.nn.Module):
         Sanding & No-Sanding Areas:
         There are sanding (green) and no-sanding (red) areas, each with a radius of 10. Their configurations vary based on the task.
         '''
-        self.actor_logstd = torch.log( 2*0.2*torch.ones(self.action_space, device=self.device) )
+        # IMPROVEMENT
+        # self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
+        self.actor_logstd = torch.log( 0.001*torch.ones(self.action_space, device=self.device) )
+        
+        
         # self.actor_logstd = torch.ones(self.action_space, device=self.device)
         # Extend:
         # self.register_parameter(name='actor_logstd',
@@ -54,6 +64,8 @@ class Policy(torch.nn.Module):
         #     nn.Linear(hidden_size, hidden_size),
         #     nn.Linear(hidden_size, 1)
         # )
+        
+        #IMPROVEMENT
         self.value = nn.Sequential(
             layer_init(nn.Linear(state_space, hidden_size)), nn.Tanh(),
             layer_init(nn.Linear(hidden_size, hidden_size)), nn.Tanh(),
@@ -80,6 +92,7 @@ class Policy(torch.nn.Module):
         # action_logstd = self.actor_logstd.expand_as(action_mean) # (bs, act_dim)
         
         # Exponentiate the log std to get actual std
+        # print("self.actor_logstd", self.actor_logstd)
         action_std = torch.exp(self.actor_logstd) # (act_dim,)
         # torch.diag(action_std) : (act_dim, act_dim)
         
@@ -88,9 +101,8 @@ class Policy(torch.nn.Module):
         # so Normal distribution with mean of 'action_mean' and standard deviation of 'action_logstd', and return the distribution
         # act_distr = MultivariateNormal( loc=action_mean, scale_tril=torch.diag(action_std) )
         
-        act_normal_distr = Normal(loc=action_mean , scale=action_std)
+        act_normal_distr = Normal(loc=action_mean, scale=action_std)
         act_distr = Independent(base_distribution=act_normal_distr, reinterpreted_batch_ndims=1)
-        
         
         value = self.value(x) # output shape [bs,]
 
@@ -98,6 +110,14 @@ class Policy(torch.nn.Module):
 
     
     def set_logstd_ratio(self, ratio_of_episodes):
-        # self.actor_logstd = ratio_of_episodes * torch.ones(self.action_space, device=self.device)
-        # pass # will be implemented for the extension
-        pass
+        self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
+        
+    def set_logstd_ratio_normalized(self, ratio_of_episodes):
+        # IMPROVEMENT
+        # self.actor_logstd = torch.log( 0.5*(ratio_of_episodes+0.05)*torch.ones(self.action_space, device=self.device) )
+        # IMPROVEMENT off
+        self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
+        
+        # print("ratio_of_episodes", ratio_of_episodes) 
+        # print("self.actor_logstd", self.actor_logstd)
+        # self.actor_logstd = .05 * np.exp(ratio_of_episodes) * torch.ones(self.action_space, device=self.device)

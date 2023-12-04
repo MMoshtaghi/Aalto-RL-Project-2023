@@ -114,7 +114,10 @@ class Policy(torch.nn.Module):
         
     def set_logstd_ratio_normalized(self, ratio_of_episodes):
         # IMPROVEMENT
-        self.actor_logstd = torch.log( 0.5*(ratio_of_episodes+0.001)*torch.ones(self.action_space, device=self.device) )
+        # self.actor_logstd = torch.log( 0.5*(ratio_of_episodes+0.05)*torch.ones(self.action_space, device=self.device) )
+        # IMPROVEMENT off
+        self.actor_logstd = torch.log( 0.2*torch.ones(self.action_space, device=self.device) )
+        
         # print("ratio_of_episodes", ratio_of_episodes) 
         # print("self.actor_logstd", self.actor_logstd)
         # self.actor_logstd = .05 * np.exp(ratio_of_episodes) * torch.ones(self.action_space, device=self.device)

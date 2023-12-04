@@ -107,9 +107,9 @@ class PPOExtension(PPOAgent):
         # calculate entropy, for the entropy bonus
         entropy = new_policy_action_dists.entropy().mean()
 
-        loss = 1.0 * policy_objective + 1.0 * value_loss - self.alpha_entropy_bonus * entropy
+        # loss = 1.0 * policy_objective + 1.0 * value_loss - self.alpha_entropy_bonus * entropy
         # IMPROVEMENT OFF
-        # loss = 1.0 * policy_objective + 1.0 * value_loss
+        loss = 1.0 * policy_objective + 1.0 * value_loss
 
         # update alpha_entropy_bonus using exponential decay
         self.alpha_entropy_bonus *= 0.999
